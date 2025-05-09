@@ -22,7 +22,7 @@ module top (
   parameter period_9600 = 625;
 
   // Message string to send
-  reg [7:0] message [0:8]; // 9 bytes for "narasimha"
+  reg [7:0] message [0:8]; 
   reg [3:0] index = 0;     // Index to track current character
   reg send_flag = 0;
   reg [3:0] tx_timer = 0;  // Simple delay timer between sends
