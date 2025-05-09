@@ -1,0 +1,101 @@
+*`include "uart_trx.v"
+
+//----------------------------------------------------------------------------
+//                         Module Declaration
+//----------------------------------------------------------------------------
+module top (
+  // outputs
+  output wire led_red,
+  output wire led_blue,
+  output wire led_green,
+  output wire uarttx,
+  input wire uartrx,
+  input wire hw_clk
+);
+
+  wire int_osc;
+  reg [27:0] frequency_counter_i;
+
+  // 9600 Hz clock generation (from 12 MHz)
+  reg clk_9600 = 0;
+  reg [31:0] cntr_9600 = 32'b0;
+  parameter period_9600 = 625;
+
+  // Message string to send
+  reg [7:0] message [0:8]; // 9 bytes for "narasimha"
+  reg [3:0] index = 0;     // Index to track current character
+  reg send_flag = 0;
+  reg [3:0] tx_timer = 0;  // Simple delay timer between sends
+
+  initial begin
+    message[0] = "m";
+    message[1] = "a";
+    message[2] = "a";
+    message[3] = "e";
+    message[4] = "h";
+    message[5] = "c";
+    message[6] = "i";
+    message[7] = "e";
+    message[8] = "m";
+  end
+
+  wire [7:0] current_byte = message[index];
+
+  uart_tx_8n1 DanUART (
+    .clk(clk_9600),
+    .txbyte(current_byte),
+    .senddata(send_flag),
+    .tx(uarttx)
+  );
+
+  // Internal oscillator instance
+  SB_HFOSC #(.CLKHF_DIV("0b10")) u_SB_HFOSC (
+    .CLKHFPU(1'b1),
+    .CLKHFEN(1'b1),
+    .CLKHF(int_osc)
+  );
+
+  // Counter and 9600Hz clock generation
+  always @(posedge int_osc) begin
+    frequency_counter_i <= frequency_counter_i + 1;
+
+    cntr_9600 <= cntr_9600 + 1;
+    if (cntr_9600 == period_9600) begin
+      clk_9600 <= ~clk_9600;
+      cntr_9600 <= 0;
+    end
+  end
+
+  // Message transmission control
+  always @(posedge clk_9600) begin
+    if (tx_timer == 0) begin
+      send_flag <= 1;
+      tx_timer <= 10; // adjust this delay as needed for safe timing
+    end else begin
+      send_flag <= 0;
+      tx_timer <= tx_timer - 1;
+
+      if (tx_timer == 1) begin
+        index <= (index == 8) ? 0 : index + 1;
+      end
+    end
+  end
+
+  // RGB LED Control
+  SB_RGBA_DRV RGB_DRIVER (
+    .RGBLEDEN(1'b1),
+    .RGB0PWM(uartrx),
+    .RGB1PWM(uartrx),
+    .RGB2PWM(uartrx),
+    .CURREN(1'b1),
+    .RGB0(led_green),
+    .RGB1(led_blue),
+    .RGB2(led_red)
+  );
+
+  defparam RGB_DRIVER.RGB0_CURRENT = "0b000001";
+  defparam RGB_DRIVER.RGB1_CURRENT = "0b000001";
+  defparam RGB_DRIVER.RGB2_CURRENT = "0b000001";
+
+endmodule
+*
